@@ -130,7 +130,7 @@
 
   <script>
     let posts = [];
-    const postsPerPage = 3;
+    const limit = 3;
     let currentPage = 1;
 
     const sendRequest = (url,method,data)=>{
@@ -142,7 +142,7 @@
       }
       if(data){
          if(method === "GET"){
-            url+= new URLSearchParams(data).toString();
+            url = url + "?"+ new URLSearchParams(data).toString();
          }else{
           option.body=JSON.stringify(data);
          }
@@ -152,7 +152,7 @@
 
     function getPosts(){
       return new Promise((resolve,reject)=>{
-        sendRequest("/posts","GET").then((response)=>{
+        sendRequest("/posts","GET",{limit,page:currentPage}).then((response)=>{
           if(!response.ok){
             reject( new Error("post add failed"))
           }
@@ -194,6 +194,7 @@
                 return response.json()
               }).then(data=>{
                   alert("delete success");
+                  currentPage = 1;
                   updatePostList();
               }).catch(err=>{
                console.error(err);
@@ -222,19 +223,17 @@
     async function updatePostList() {
       const postList = document.getElementById('postList');
       const pagination = document.getElementById('pagination');
-      const startIndex = (currentPage - 1) * postsPerPage;
-      const endIndex = startIndex + postsPerPage;
       postList.innerHTML = '';
 
-     posts =  await getPosts();
-
+     postsResult =  await getPosts();
+     posts = postsResult.post
       if (posts.length === 0) {
         postList.innerHTML = '<p>No posts available.</p>';
         pagination.innerHTML = '';
         return;
       }
 
-      posts.slice(startIndex, endIndex).forEach(post => {
+      posts.forEach(post => {
         const postElement = document.createElement('div');
         postElement.classList.add('post');
 
@@ -259,7 +258,7 @@
         postList.appendChild(postElement);
       });
 
-      const totalPages = Math.ceil(posts.length / postsPerPage);
+      const totalPages = postsResult.totalPages;
       pagination.innerHTML = '';
 
       const maxPages = Math.min(5, totalPages);

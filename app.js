@@ -99,10 +99,29 @@ app.post("/login",async (req,res)=>{
         console.error('Error:', error);
     }
 })
-//get all posts
+//get all posts ,need to add pagination
 app.get("/posts",async (req,res)=>{
-   const result =  await Post.find();
-   res.send(result);
+    const page = parseInt(req.query.page)|| 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skipNumber = limit * (page - 1);
+    try {
+        const [result,totalPosts] = await Promise.all([
+            Post.find().skip(skipNumber).limit(limit),
+            Post.countDocuments()
+        ]);
+        res.send({
+            totalPosts,
+            post:result,
+            currentPage:page,
+            totalPages: Math.ceil(totalPosts/limit)
+        })
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({message:"server error"});
+    }
+
+
+
 })
 
 
