@@ -129,44 +129,104 @@
   <div class="pagination" id="pagination"></div>
 
   <script>
-    const posts = [];
+    let posts = [];
     const postsPerPage = 3;
     let currentPage = 1;
+
+    const sendRequest = (url,method,data)=>{
+      const option = {
+          method:method,
+          headers:{
+            "Content-Type":"application/json"
+          }
+      }
+      if(data){
+         if(method === "GET"){
+            url+= new URLSearchParams(data).toString();
+         }else{
+          option.body=JSON.stringify(data);
+         }
+      }
+      return fetch(url,option)
+    }
+
+    function getPosts(){
+      return new Promise((resolve,reject)=>{
+        sendRequest("/posts","GET").then((response)=>{
+          if(!response.ok){
+            reject( new Error("post add failed"))
+          }
+          return response.json();
+        }).then(data=>{
+            resolve(data)
+        })
+        .catch(err=>{
+           reject(err)
+        })
+      })
+    }
 
     function createPost() {
       const text = document.getElementById('text').value;
       if (text) {
-        posts.push({ id: posts.length + 1, text });
-        updatePostList();
-        document.getElementById('text').value = '';
-      }
-    }
-
-    function deletePost(postId) {
-      const index = posts.findIndex(post => post.id === postId);
-      if (index !== -1) {
-        posts.splice(index, 1);
-        updatePostList();
-      }
-    }
-
-    function editPost(postId) {
-      const newText = prompt('Edit the post:', posts.find(post => post.id === postId).text);
-      if (newText !== null) {
-        const index = posts.findIndex(post => post.id === postId);
-        if (index !== -1) {
-          posts[index].text = newText;
+        sendRequest("/posts","POST",{text}).then((response)=>{
+          if(!response.ok){
+            throw new Error("post add failed")
+          }
+          return response.json();
+        }).then(data=>{
           updatePostList();
-        }
+          document.getElementById('text').value = '';
+        })
+        .catch(err=>{
+          console.error(err);
+        })
+
       }
     }
 
-    function updatePostList() {
+    function deletePost(post) {
+       sendRequest(`/posts/${post._id}`,"DELETE")
+              .then(response=>{
+                if(!response.ok){
+                  throw new Error("post delete failed")
+                }
+                return response.json()
+              }).then(data=>{
+                  alert("delete success");
+                  updatePostList();
+              }).catch(err=>{
+               console.error(err);
+        })
+    }
+
+    function editPost(post) {
+      const newText = prompt('Edit the post:', post.text);
+      if (newText !== null) {
+        sendRequest(`/posts/${post._id}`,"PUT",{text:newText})
+        .then(response=>{
+                if(!response.ok){
+                  throw new Error("post update failed")
+                }
+                return response.json()
+              }).then(data=>{
+                  alert("update success");
+                  updatePostList();
+              }).catch(err=>{
+               console.error(err);
+        })
+
+      }
+    }
+
+    async function updatePostList() {
       const postList = document.getElementById('postList');
       const pagination = document.getElementById('pagination');
       const startIndex = (currentPage - 1) * postsPerPage;
       const endIndex = startIndex + postsPerPage;
       postList.innerHTML = '';
+
+     posts =  await getPosts();
 
       if (posts.length === 0) {
         postList.innerHTML = '<p>No posts available.</p>';
@@ -185,12 +245,12 @@
         const editButton = document.createElement('span');
         editButton.classList.add('edit-post-btn');
         editButton.textContent = 'Edit';
-        editButton.onclick = () => editPost(post.id);
+        editButton.onclick = () => editPost(post);
 
         const deleteButton = document.createElement('span');
         deleteButton.classList.add('delete-post-btn');
         deleteButton.textContent = 'Delete';
-        deleteButton.onclick = () => deletePost(post.id);
+        deleteButton.onclick = () => deletePost(post);
 
         postElement.appendChild(postText);
         postElement.appendChild(editButton);

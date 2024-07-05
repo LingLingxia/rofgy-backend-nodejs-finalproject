@@ -84,47 +84,51 @@ app.post("/login",async (req,res)=>{
         }
         const token = jwt.sign({userId:user._id,username:user.username},SECRET_KEY,{expiresIn:"1h"});
         req.session.token = token;
-        res.redirect(`/index?username=${newUser.username}`);
+        res.redirect(`/index?username=${user.username}`);
     } catch (error) {
         console.error('Error:', error);
     }
 })
+//get all posts
+app.get("/posts",async (req,res)=>{
+   const result =  await Post.find();
+   res.send(result);
+})
+
+
 
 // Insert your post creation code here.
 
-app.post("/posts",authenticateJWT,(req,res)=>{
+app.post("/posts",authenticateJWT,async (req,res)=>{
     const {text} = req.body;
     if(!text || typeof text!== 'string') {
         return res.status(400).json({message:"please provide valid post content"});
     }
-    // const newPost = new Post({userId: req.user.userId,text}) ;
-    // await newPost.save();
-    //todo: need to be updated
-    const newPost = { userId: req.user.userId, text };
-    posts.push(newPost);
-    res.status(201).json({message:"Post created successfully"});
+    const newPost = new Post({userId: req.user.userId,text}) ;
+    await newPost.save();
+
+    res.status(201).json(newPost);
 })
 
 // Insert your post updation code here.
 
-app.put("/posts/:postId",authenticateJWT,(req,res)=>{ //可是这个post它没有id啊
-    const postId = parseInt(req.params.postId);
-
-    const postIndex = posts.findIndex((post)=>post.id === postId && post.userId === req.user.userId)
-    if(postIndex ===-1) return res.status(404).json({message:"Post not found"});
-    posts[postIndex].text = text;
-    res.json({message:"post updated successfully",updatedPost:posts[postIndex]});
+app.put("/posts/:postId",authenticateJWT,async (req,res)=>{
+    const postId = req.params.postId;
+    const post = await Post.findOne( {$and:[{_id:postId},{userId:req.user.userId}] });
+    if(!post) return res.status(404).json({message:"Post not found"});
+    await Post.updateOne({_id:postId},{text:req.body.text})
+    res.json({message:"post updated successfully"});
 })
 
 // Insert your post deletion code here.
-app.delete("/posts/:postId",authenticateJWT,(req,res)=>{
-    const postId = parseInt(req.params.postId);
-    const postIndex = posts.findIndex(post=>post.id === postId && post.userId === req.user.userId);
-    if(postIndex === -1){
+app.delete("/posts/:postId",authenticateJWT,async (req,res)=>{
+    const postId = req.params.postId;
+    const post = await Post.findOne( {$and:[{_id:postId},{userId:req.user.userId}] });
+    if(!post){
         return res.status(404).json({message:"Post not found"});
     }
-    const deletedPost = posts.splice(postIndex,1)[0];
-    res.json({message:"Post deleted successfully",deletedPost});
+    await Post.deleteOne({_id:postId})
+    res.json({message:"Post deleted successfully"});
 })
 
 // Insert your user logout code here.
