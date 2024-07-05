@@ -3,10 +3,13 @@ const jwt = require('jsonwebtoken');
 const session = require('express-session');
 const path = require('path');
 const mongoose = require('mongoose');
+const bcrypt = require("bcrypt")
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SECRET_KEY = 'your_secret_key';
+const saltRounds = 5;
 
 mongoose.set('strictQuery', false);
 
@@ -16,13 +19,13 @@ mongoose.connect(uri,{'dbName':'SocialDB'});
 const User = mongoose.model('User', { username: String, email: String, password: String });
 const Post = mongoose.model('Post', { userId: mongoose.Schema.Types.ObjectId, text: String });
 
-const posts = [];//I don't know what's this 
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({ secret: SECRET_KEY, resave: false, saveUninitialized: true, cookie: { secure: false } }));
 
 
-// Insert your authenticateJWT Function code here.
+
 function authenticateJWT(req,res,next){
     const token = req.session.token;
     if(!token) return res.status(401).json({message:"Unauthorized"});
@@ -35,7 +38,7 @@ function authenticateJWT(req,res,next){
     }
 }
 
-// Insert your requireAuth Function code here.
+
 function requireAuth(req,res,next){
     const token = req.session.token;
     if(!token) return res.redirect("/login");
@@ -49,13 +52,13 @@ function requireAuth(req,res,next){
 }
 
 
-// Insert your routing HTML code here.
+
 app.get("/",(req,res)=> res.sendFile(path.join(__dirname,"public","index.html")));
 app.get("/register",(req,res)=>res.sendFile(path.join(__dirname,"public","register.html")));
 app.get("/login",(req,res)=>res.sendFile(path.join(__dirname,"public","login.html")));
 app.get("/post",requireAuth,(req,res)=>res.sendFile(path.join(__dirname,"public","post.html")));
 app.get('/index', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-// Insert your user registration code here.
+
 app.post("/register",async (req,res) =>{
     const {username,email,password} = req.body;
     try{
@@ -63,7 +66,8 @@ app.post("/register",async (req,res) =>{
         if(existingUser){
             return res.status(400).json({message:"User already exists"});
         }
-        const newUser = new User({username,email,password});
+        let hashedPassword = await bcrypt.hash(password,saltRounds);
+        const newUser = new User({username,email,password:hashedPassword});
         await newUser.save();
         const token = jwt.sign({userId:newUser._id,username:newUser.username},SECRET_KEY,{expiresIn:"1h"});
         req.session.token = token;
@@ -74,7 +78,6 @@ app.post("/register",async (req,res) =>{
     }
 })
 
-// Insert your user login code here.
 app.post("/login",async (req,res)=>{
     const {username, email,password} = req.body;
     try {
@@ -82,9 +85,16 @@ app.post("/login",async (req,res)=>{
         if(!user) {
             return res.status(401).json({message:"Invalid credentials"})
         }
-        const token = jwt.sign({userId:user._id,username:user.username},SECRET_KEY,{expiresIn:"1h"});
-        req.session.token = token;
-        res.redirect(`/index?username=${user.username}`);
+        console.log("password",password,user.password);
+        const result = await bcrypt.compare(password,user.password);
+        if (result) {
+            const token = jwt.sign({userId:user._id,username:user.username},SECRET_KEY,{expiresIn:"1h"});
+            req.session.token = token;
+            res.redirect(`/index?username=${user.username}`);
+        } else {
+             return res.status(401).json({message:"Invalid credentials"})
+        }
+
     } catch (error) {
         console.error('Error:', error);
     }
@@ -97,8 +107,7 @@ app.get("/posts",async (req,res)=>{
 
 
 
-// Insert your post creation code here.
-
+//  post creation  .
 app.post("/posts",authenticateJWT,async (req,res)=>{
     const {text} = req.body;
     if(!text || typeof text!== 'string') {
@@ -110,7 +119,7 @@ app.post("/posts",authenticateJWT,async (req,res)=>{
     res.status(201).json(newPost);
 })
 
-// Insert your post updation code here.
+// post updation .
 
 app.put("/posts/:postId",authenticateJWT,async (req,res)=>{
     const postId = req.params.postId;
@@ -120,7 +129,7 @@ app.put("/posts/:postId",authenticateJWT,async (req,res)=>{
     res.json({message:"post updated successfully"});
 })
 
-// Insert your post deletion code here.
+// post deletion .
 app.delete("/posts/:postId",authenticateJWT,async (req,res)=>{
     const postId = req.params.postId;
     const post = await Post.findOne( {$and:[{_id:postId},{userId:req.user.userId}] });
@@ -131,7 +140,7 @@ app.delete("/posts/:postId",authenticateJWT,async (req,res)=>{
     res.json({message:"Post deleted successfully"});
 })
 
-// Insert your user logout code here.
+// user logout .
 
 app.get("/logout",(req,res)=>{
     req.session.destroy((err)=>{
